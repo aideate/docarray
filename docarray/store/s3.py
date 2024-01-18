@@ -1,5 +1,6 @@
 import io
 import logging
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, Iterator, List, Optional, Type, TypeVar
 
@@ -21,6 +22,22 @@ else:
 
 SelfS3DocStore = TypeVar('SelfS3DocStore', bound='S3DocStore')
 
+def get_transport_params():
+    transport_params = {}
+    if os.environ.get("AWS_ACCESS_KEY_ID") or os.environ.get("AWS_SECRET_ACCESS_KEY"):
+        session = boto3.Session(
+            aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
+            aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY")
+        )
+        if os.environ.get("S3_ENDPOINT_URL"):
+            transport_params["client"] = session.client("s3", endpoint_url=os.environ.get("S3_ENDPOINT_URL"))
+        else:
+            transport_params["client"] = session.client("s3")
+
+    if transport_params:
+        return transport_params
+    else:
+        return None
 
 class _BufferedCachingReader:
     """A buffered reader that writes to a cache file while reading."""
@@ -32,7 +49,14 @@ class _BufferedCachingReader:
         self._cache = None
         if cache_path:
             self._cache_path = cache_path.with_suffix('.tmp')
-            self._cache = open(self._cache_path, 'wb')
+
+            transport_params = None
+            if os.environ.get("S3_ENDPOINT_URL"):
+                transport_params = {
+                    "endpoint_url": os.environ.get("S3_ENDPOINT_URL")
+                }
+
+            self._cache = open(self._cache_path, 'wb', transport_params=get_transport_params())
         self.closed = False
 
     def read(self, size: Optional[int] = -1) -> bytes:
@@ -147,13 +171,15 @@ class S3DocStore(AbstractDocStore):
         binary_stream = _to_binary_stream(
             docs, protocol='pickle', compress=None, show_progress=show_progress
         )
+        transport_params = get_transport_params()
+        transport_params["multipart_upload"] = False
 
         # Upload to S3
         with open(
             f"s3://{bucket}/{name}.docs",
             'wb',
             compression='.gz',
-            transport_params={'multipart_upload': False},
+            transport_params=transport_params,
         ) as fout:
             while True:
                 try:
@@ -206,9 +232,9 @@ class S3DocStore(AbstractDocStore):
 
         save_name = name.replace('/', '_')
         cache_path = _get_cache_path() / f'{save_name}.docs'
-
+        transport_params = get_transport_params()
         source = _BufferedCachingReader(
-            open(f"s3://{bucket}/{name}.docs", 'rb', compression='.gz'),
+            open(f"s3://{bucket}/{name}.docs", 'rb', compression='.gz', transport_params=transport_params),
             cache_path=cache_path if local_cache else None,
         )
 
@@ -221,7 +247,7 @@ class S3DocStore(AbstractDocStore):
                     logging.info(
                         f'Using cached file for {name} (size: {cache_path.stat().st_size})'
                     )
-                    source = open(cache_path, 'rb')
+                    source = open(cache_path, 'rb', transport_params=transport_params)
 
         return _from_binary_stream(
             docs_cls.doc_type,
