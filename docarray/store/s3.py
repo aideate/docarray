@@ -172,6 +172,8 @@ class S3DocStore(AbstractDocStore):
             docs, protocol='pickle', compress=None, show_progress=show_progress
         )
         transport_params = get_transport_params()
+        if transport_params is None:
+            transport_params = {}
         transport_params["multipart_upload"] = False
 
         # Upload to S3
