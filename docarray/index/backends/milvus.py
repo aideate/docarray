@@ -86,10 +86,7 @@ class MilvusDocumentIndex(BaseDocIndex, Generic[TSchema]):
 
         self._client = connections.connect(
             db_name="default",
-            host=self._db_config.host,
-            port=self._db_config.port,
-            user=self._db_config.user,
-            password=self._db_config.password,
+            uri=self._db_config.uri,
             token=self._db_config.token,
         )
 
@@ -122,10 +119,7 @@ class MilvusDocumentIndex(BaseDocIndex, Generic[TSchema]):
 
         index_name: Optional[str] = None
         collection_description: str = ""
-        host: str = "localhost"
-        port: int = 19530
-        user: Optional[str] = ""
-        password: Optional[str] = ""
+        uri: str = ""
         token: Optional[str] = ""
         consistency_level: str = 'Session'
         search_params: Dict = field(
