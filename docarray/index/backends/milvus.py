@@ -94,7 +94,6 @@ class MilvusDocumentIndex(BaseDocIndex, Generic[TSchema]):
         self._field_name = self._get_vector_field_name()
         self._collection = self._create_or_load_collection()
         self._build_index()
-        self._collection.load()
         self._logger.info(f'{self.__class__.__name__} has been initialized')
 
     @dataclass
@@ -426,7 +425,6 @@ class MilvusDocumentIndex(BaseDocIndex, Generic[TSchema]):
              especially after delete ops (#15201 issue in Milvus)
         """
 
-        self._collection.load()
 
         result = self._collection.query(
             expr=self._always_true_expr("id"),
@@ -448,7 +446,6 @@ class MilvusDocumentIndex(BaseDocIndex, Generic[TSchema]):
                 Duplicate `doc_ids` can be omitted in the output.
         """
 
-        self._collection.load()
         results: List[Dict] = []
         for batch in self._get_batches(
             doc_ids, batch_size=self._runtime_config.batch_size
@@ -462,7 +459,6 @@ class MilvusDocumentIndex(BaseDocIndex, Generic[TSchema]):
                 )
             )
 
-        self._collection.release()
 
         return self._docs_from_query_response(results)
 
@@ -471,7 +467,6 @@ class MilvusDocumentIndex(BaseDocIndex, Generic[TSchema]):
 
         :param doc_ids: ids to delete from the Document Store
         """
-        self._collection.load()
         for batch in self._get_batches(
             doc_ids, batch_size=self._runtime_config.batch_size
         ):
@@ -494,7 +489,6 @@ class MilvusDocumentIndex(BaseDocIndex, Generic[TSchema]):
         :return: Filter results.
         """
 
-        self._collection.load()
 
         result = self._collection.query(
             expr=filter_query,
@@ -503,7 +497,6 @@ class MilvusDocumentIndex(BaseDocIndex, Generic[TSchema]):
             output_fields=["serialized"],
         )
 
-        self._collection.release()
 
         return self._docs_from_query_response(result)
 
@@ -616,7 +609,6 @@ class MilvusDocumentIndex(BaseDocIndex, Generic[TSchema]):
         :param expr: Boolean expression used for filtering.
         :return: Search results.
         """
-        self._collection.load()
 
         results = self._collection.search(
             data=[query],
@@ -629,7 +621,6 @@ class MilvusDocumentIndex(BaseDocIndex, Generic[TSchema]):
             consistency_level=self._db_config.consistency_level,
         )
 
-        self._collection.release()
 
         results = next(iter(results), None)  # Only consider the first element
 
@@ -707,7 +698,6 @@ class MilvusDocumentIndex(BaseDocIndex, Generic[TSchema]):
         :return: Search results.
         """
 
-        self._collection.load()
 
         results = self._collection.search(
             data=queries,
@@ -719,7 +709,6 @@ class MilvusDocumentIndex(BaseDocIndex, Generic[TSchema]):
             consistency_level=self._db_config.consistency_level,
         )
 
-        self._collection.release()
 
         documents, scores = zip(
             *[self._docs_from_find_response(result) for result in results]
